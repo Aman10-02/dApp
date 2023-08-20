@@ -172,7 +172,7 @@ async def add_file():
                             error_flag = True
                             message = 'Could not complete. Try again !!'
                     hashed_output1 = hash_user_file(file_path, file_key)
-                    index = await blockchain.create_block(sender, receiver, hashed_output1)
+                    index = blockchain.create_block(sender, receiver, hashed_output1)
                     await sio.emit("set_chain", {"chain": blockchain.chain}, callback = cb )
                 except Exception as err:
                     message = str(err)
@@ -291,7 +291,7 @@ async def disconnect_blockchain():
     global connection_status
     connection_status = False
     await sio.disconnect()
-    # await sio.wait()
+    await sio.wait()
     
     return render_template('index.html')
 

@@ -28,7 +28,7 @@ class Blockchain():
             'index': len(self.chain),
             'sender': sender,
             'receiver': receiver,
-            'timestamp': time(),
+            'timestamp': str(time.strftime("%d %B %Y , %I:%M:%S %p", time.localtime())),  # d-date, B-Month, Y-Year ,I-Hours in 12hr format, M-Minutes, S-secnods, p-A.M or P.M,
             'file_unique_id': information
         }
         # if(block['index'] == 0): block['previous_hash'] = self.__secret 
@@ -43,7 +43,7 @@ class Blockchain():
                 break
             i+=1
         self.chain.append(block)
-    def validate_blockchain(chain):
+    def validate_blockchain(self, chain):
         valid = True
         n = len(chain)-1
         i = 0
@@ -76,7 +76,7 @@ class Blockchain():
     
 #     def create_block(self, proof, previous_hash, sender, receiver, file_hash):
 #         block = {'index': len(self.chain) + 1,
-#                  'timestamp': str(time.strftime("%d %B %Y , %I:%M:%S %p", time.localtime())),  # d-date, B-Month, Y-Year ,I-Hours in 12hr format, M-Minutes, S-secnods, p-A.M or P.M
+                #  'timestamp': str(time.strftime("%d %B %Y , %I:%M:%S %p", time.localtime())),  # d-date, B-Month, Y-Year ,I-Hours in 12hr format, M-Minutes, S-secnods, p-A.M or P.M
 #                  'proof': proof,
 #                  'previous_hash': previous_hash,
 #                  'sender': sender, #########
