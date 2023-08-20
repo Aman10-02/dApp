@@ -1,5 +1,5 @@
-# import time
-from time import time
+import time
+# from time import time
 import hashlib
 import json
 from flask import Flask, jsonify, request
