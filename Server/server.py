@@ -11,7 +11,10 @@ from werkzeug.utils import secure_filename
 import pickle
 from blockchain import Blockchain
 import requests
+# import os
 
+HOST = os.environ.get('HOST', '0.0.0.0')
+PORT = int(os.environ.get('PORT', 5111))
 # The package requests is used in the 'hash_user_file' and 'retrieve_from hash' functions to send http post requests.
 # Notice that 'requests' is different than the package 'request'.
 # 'request' package is used in the 'add_file' function for multiple actions.
@@ -238,4 +241,5 @@ def set_chain(data):
 
 if __name__ == '__main__':
     # socketio.run(app, "https://eed5-14-139-196-13.ngrok-free.app", debug=True)
-    socketio.run(app, host = '127.0.0.1', port= 5111, debug=True)
+    # socketio.run(app, host = '127.0.0.1', port= 5111, debug=True)
+    socketio.run(app, host = HOST, port= PORT, debug=True)
