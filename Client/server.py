@@ -9,7 +9,7 @@ from flask import Flask, flash, request, redirect, render_template, url_for, jso
 from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, send, emit
 # from "web3.storage" import Web3Storage
-from web3storage import Client
+# from web3storage import Client
 from public_private import generate_and_store_keys
 from key_management import get_str_from_key
 from upload_function import encrypt_upload

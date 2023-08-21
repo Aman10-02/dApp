@@ -6,7 +6,7 @@ import pyAesCrypt
 from flask import Flask, flash, request, redirect, render_template, url_for, jsonify
 from flask_socketio import SocketIO, send, emit
 from werkzeug.utils import secure_filename
-from web3storage import Client
+# from web3storage import Client
 import socket
 import pickle
 from blockchain import Blockchain
