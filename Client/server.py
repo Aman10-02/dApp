@@ -1,6 +1,7 @@
 import os
 import urllib.request
 from my_constants import app
+import time
 import asyncio
 import threading
 import pyAesCrypt
@@ -27,6 +28,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RT
 
 myid = ''
 my_key = ''
+my_name = ''
 sio = socketio.Client(logger = True,engineio_logger=True)
 client_ip = app.config['ADDR']
 connection_status = False
@@ -69,10 +71,10 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 # def append_file_extension(uploaded_file, file_path):
-#     file_extension = uploaded_file.filename.rsplit('.', 1)[1].lower()
-#     user_file = open(file_path, 'a')
-#     user_file.write('\n' + file_extension)
-#     user_file.close()
+    file_extension = uploaded_file.filename.rsplit('.', 1)[1].lower()
+    user_file = open(file_path, 'a')
+    user_file.write('\n' + file_extension)
+    user_file.close()
 
 # def decrypt_file(file_path, file_key):
 #     encrypted_file = file_path + ".aes"
@@ -147,10 +149,17 @@ async def add_file():
             message = 'No file part'
         else:
             user_file = request.files['file']
+            receiver = request.form['receiver_name']
+            receiver_key = ''
             if user_file.filename == '':
                 message = 'No file selected for uploading'
 
-            if user_file and allowed_file(user_file.filename):
+            if receiver not in blockchain.clients:
+                message = 'Invalid Receiver'
+            else:
+                receiver_key = blockchain.clients[receiver]
+
+            if receiver_key and user_file and allowed_file(user_file.filename):
                 error_flag = False
                 filename = secure_filename(user_file.filename)
                 # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -159,7 +168,6 @@ async def add_file():
                 user_file.save(file_path)
                 # append_file_extension(user_file, file_path)
                 sender = request.form['sender_name']
-                receiver = request.form['receiver_name']
                 file_key = request.form['file_key']
                     
                 try:
@@ -169,8 +177,8 @@ async def add_file():
                             error_flag = True
                             message = 'Could not complete. Try again !!'
                     # hashed_output1 = hash_user_file(file_path, file_key)
-                    hashed_output1 = encrypt_upload(file_path, receiver)
-                    index = blockchain.create_block(my_key, receiver, hashed_output1)
+                    hashed_output1 = encrypt_upload(file_path, receiver_key)
+                    index = blockchain.create_block(my_name, receiver, hashed_output1)
                     sio.emit("set_chain", {"chain": blockchain.chain}, callback = cb )
                 except Exception as err:
                     message = str(err)
@@ -226,7 +234,7 @@ def setme(data) :
 @sio.on("connect")
 def connect():
     print("Connected to signaling server")
-    # sio.emit("add_client", {"key" : my_key, ""})
+    sio.emit("add_client", {"key" : my_key, "userName" : my_name})
 
 @sio.on("disconnect")
 def disconnect():
@@ -240,10 +248,11 @@ def update_chain(data):
     blockchain.chain = data.get("chain")
 
 @sio.on("my_response")
-def my_response(message):
-    print("message", message)
-    print(pickle.loads(message['data']))
-    blockchain.nodes = pickle.loads(message['data'])
+def my_response(data):
+    print("message", data)
+    # print(pickle.loads(data['data']))
+    blockchain.nodes = pickle.loads(data.get('nodes'))
+    blockchain.clients = data.get('clients')
 
 @sio.on("get_chain")
 def get_chain(data):
@@ -256,16 +265,21 @@ def get_chain(data):
 @app.route('/connect_blockchain')
 async def connect_blockchain():
     global connection_status
-    global my_key
+    global my_key, my_name
     nodes = len(blockchain.nodes)
 
     if os.path.exists("./private_key.pem"):
         print("File exists!")
         with open('public.txt', 'r') as fl:
             my_key = fl.read()
+        with open('username.txt', 'r') as nm:
+            my_name = nm.read()
     else:
         generate_and_store_keys()
         my_key = get_str_from_key()
+        my_name = str(int(time.time()))
+        with open('username.txt', 'w') as userfile:
+            userfile.write(my_name)
     if not connection_status:
         thread = threading.Thread(target= connect_socketio)
         thread.start()
@@ -277,7 +291,7 @@ async def connect_blockchain():
     return render_template('connect_blockchain.html', messages={
         'message1': "Welcome to the services page",
         'message2': "Congratulations, you are now connected to the blockchain.",
-    }, chain=blockchain.chain, nodes=nodes)
+    }, chain=blockchain.chain, nodes=nodes, userName = my_name)
 
 def connect_socketio():
     # loop = asyncio.new_event_loop()

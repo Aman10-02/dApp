@@ -90,6 +90,7 @@ def write_file(file_path,d):
 
 def detect_file_type(binary_data):
     magic_numbers = {
+        b'\x74\x65\x78\x74': 'TXT',
         b'\x89PNG': 'PNG',
         b'\xff\xd8\xff': 'JPEG',
         b'%PDF': 'PDF',

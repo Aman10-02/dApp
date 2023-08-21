@@ -194,9 +194,8 @@ def get_chain():
 
 
 
-def add_node(client_node):
-    blockchain.nodes.add(client_node)
-    socketio.emit('my_response', {'data': pickle.dumps(blockchain.nodes)})
+# def add_node(client_node):
+    
 
 def remove_node(client_node):
     blockchain.nodes.remove(client_node)
@@ -208,7 +207,17 @@ def connect():
     print(f"A user connected: {request.sid}")
     print("requests", request.sid)
     socketio.emit('me', {"id":request.sid}, room = request.sid)
-    add_node(request.sid)
+    # add_node(request.sid)
+
+@socketio.on('add_client')
+def add_client(data):
+    key = data.get("key")
+    userName = data.get("userName")
+    blockchain.clients[userName] = key
+    blockchain.nodes.add(request.sid)
+    socketio.emit('my_response', {'nodes': pickle.dumps(blockchain.nodes), "clients" : blockchain.clients})
+
+
 
 @socketio.on('disconnect')
 def disconnect():

@@ -13,6 +13,7 @@ class Blockchain():
         # self.__secret = ''
         self.__difficulty = 4 
         self.nodes = set()
+        self.clients = {}
         # i = 0
         # secret_string = '/*SECRET*/'
         # while True:
