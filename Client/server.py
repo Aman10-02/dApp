@@ -9,7 +9,10 @@ from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, send, emit
 # from "web3.storage" import Web3Storage
 from web3storage import Client
-
+from public_private import generate_and_store_keys
+from key_management import get_str_from_key
+from upload_function import encrypt_upload
+from download_function import main_decrypt
 # from utils import send_offer_and_icecandidate, create_peer_connection
 import socketio
 import pickle
@@ -23,7 +26,8 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RT
 # 'request' package is used in the 'add_file' function for multiple actions.
 
 myid = ''
-sio = socketio.AsyncClient(logger = True,engineio_logger=True)
+my_key = ''
+sio = socketio.Client(logger = True,engineio_logger=True)
 client_ip = app.config['ADDR']
 connection_status = False
 
@@ -64,22 +68,22 @@ async def replace_chain():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-def append_file_extension(uploaded_file, file_path):
-    file_extension = uploaded_file.filename.rsplit('.', 1)[1].lower()
-    user_file = open(file_path, 'a')
-    user_file.write('\n' + file_extension)
-    user_file.close()
+# def append_file_extension(uploaded_file, file_path):
+#     file_extension = uploaded_file.filename.rsplit('.', 1)[1].lower()
+#     user_file = open(file_path, 'a')
+#     user_file.write('\n' + file_extension)
+#     user_file.close()
 
-def decrypt_file(file_path, file_key):
-    encrypted_file = file_path + ".aes"
-    print("decr", encrypted_file)
-    os.rename(file_path, encrypted_file)
-    pyAesCrypt.decryptFile(encrypted_file, file_path,  file_key, app.config['BUFFER_SIZE'])
+# def decrypt_file(file_path, file_key):
+#     encrypted_file = file_path + ".aes"
+#     print("decr", encrypted_file)
+#     os.rename(file_path, encrypted_file)
+#     pyAesCrypt.decryptFile(encrypted_file, file_path,  file_key, app.config['BUFFER_SIZE'])
 
-def encrypt_file(file_path, file_key):
-    pyAesCrypt.encryptFile(file_path, file_path + ".aes",  file_key, app.config['BUFFER_SIZE'])
+# def encrypt_file(file_path, file_key):
+#     pyAesCrypt.encryptFile(file_path, file_path + ".aes",  file_key, app.config['BUFFER_SIZE'])
 
-def hash_user_file(user_file, file_key):
+# def hash_user_file(user_file, file_key):
     encrypt_file(user_file, file_key)
     encrypted_file_path = user_file + ".aes"
     # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
@@ -88,7 +92,7 @@ def hash_user_file(user_file, file_key):
     file_hash = response['cid']
     return file_hash
 
-def retrieve_from_hash(file_hash, file_key):
+# def retrieve_from_hash(file_hash, file_key):
     # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
     # client = Client(api_key= app.config['KEY'] )
     # # file_content = bytes.fromhex(file_hex)
@@ -136,13 +140,6 @@ def download():
 
 @app.route('/add_file', methods=['POST'])
 async def add_file():
-    
-    # is_chain_replaced = await replace_chain()
-
-    # if is_chain_replaced:
-    #     print('The nodes had different chains so the chain was replaced by the longest one.')
-    # else:
-    #     print('All good. The chain is the largest one.')
 
     if request.method == 'POST':
         error_flag = True
@@ -160,7 +157,7 @@ async def add_file():
                 file_path = os.path.join("./uploads", filename)
                 print(file_path)
                 user_file.save(file_path)
-                append_file_extension(user_file, file_path)
+                # append_file_extension(user_file, file_path)
                 sender = request.form['sender_name']
                 receiver = request.form['receiver_name']
                 file_key = request.form['file_key']
@@ -171,9 +168,10 @@ async def add_file():
                             nonlocal error_flag, message
                             error_flag = True
                             message = 'Could not complete. Try again !!'
-                    hashed_output1 = hash_user_file(file_path, file_key)
-                    index = blockchain.create_block(sender, receiver, hashed_output1)
-                    await sio.emit("set_chain", {"chain": blockchain.chain}, callback = cb )
+                    # hashed_output1 = hash_user_file(file_path, file_key)
+                    hashed_output1 = encrypt_upload(file_path, receiver)
+                    index = blockchain.create_block(my_key, receiver, hashed_output1)
+                    sio.emit("set_chain", {"chain": blockchain.chain}, callback = cb )
                 except Exception as err:
                     message = str(err)
                     error_flag = True
@@ -193,13 +191,6 @@ async def add_file():
 @app.route('/retrieve_file', methods=['POST'])
 async def retrieve_file():
 
-    # is_chain_replaced = await replace_chain()
-
-    # if is_chain_replaced:
-    #     print('The nodes had different chains so the chain was replaced by the longest one.')
-    # else:
-    #     print('All good. The chain is the largest one.')
-
     if request.method == 'POST':
 
         error_flag = True
@@ -213,7 +204,8 @@ async def retrieve_file():
             file_key = request.form['file_key']
             file_hash = request.form['file_hash']
             try:
-                file_path = retrieve_from_hash(file_hash, file_key)
+                # file_path = retrieve_from_hash(file_hash, file_key)
+                main_decrypt(file_hash)
             except Exception as err:
                 message = str(err)
                 error_flag = True
@@ -232,28 +224,29 @@ def setme(data) :
     print("id", myid)
 
 @sio.on("connect")
-async def connect():
+def connect():
     print("Connected to signaling server")
+    # sio.emit("add_client", {"key" : my_key, ""})
 
 @sio.on("disconnect")
-async def disconnect():
+def disconnect():
     print("disconnected from signaling server")
 
 
 
 @sio.on("update_chain")
-async def update_chain(data):
+def update_chain(data):
     print("message", data)
     blockchain.chain = data.get("chain")
 
 @sio.on("my_response")
-async def my_response(message):
+def my_response(message):
     print("message", message)
     print(pickle.loads(message['data']))
     blockchain.nodes = pickle.loads(message['data'])
 
 @sio.on("get_chain")
-async def get_chain(data):
+def get_chain(data):
     print("getChain")
     chain = blockchain.chain
     length = len(chain)
@@ -263,8 +256,16 @@ async def get_chain(data):
 @app.route('/connect_blockchain')
 async def connect_blockchain():
     global connection_status
+    global my_key
     nodes = len(blockchain.nodes)
-    
+
+    if os.path.exists("./private_key.pem"):
+        print("File exists!")
+        with open('public.txt', 'r') as fl:
+            my_key = fl.read()
+    else:
+        generate_and_store_keys()
+        my_key = get_str_from_key()
     if not connection_status:
         thread = threading.Thread(target= connect_socketio)
         thread.start()
@@ -279,19 +280,23 @@ async def connect_blockchain():
     }, chain=blockchain.chain, nodes=nodes)
 
 def connect_socketio():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
     
-    loop.run_until_complete(sio.connect(app.config['SERVER_IP']))
-    loop.run_until_complete(sio.wait())
-    loop.close()
+    # loop.run_until_complete(
+    sio.connect(app.config['SERVER_IP'])
+        # )
+    # loop.run_until_complete(
+    sio.wait()
+        # )
+    # loop.close()
 
 @app.route('/disconnect_blockchain')
 async def disconnect_blockchain():
     global connection_status
     connection_status = False
-    await sio.disconnect()
-    await sio.wait()
+    sio.disconnect()
+    # await sio.wait()
     
     return render_template('index.html')
 
