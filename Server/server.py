@@ -1,4 +1,5 @@
 import os
+import time
 import urllib.request
 import ipfshttpclient
 from my_constants import app, socketio
@@ -6,11 +7,16 @@ import pyAesCrypt
 from flask import Flask, flash, request, redirect, render_template, url_for, jsonify
 from flask_socketio import SocketIO, send, emit
 from werkzeug.utils import secure_filename
+from public_private import generate_and_store_keys
+from key_management import get_str_from_key
+from upload_function import encrypt_upload
+from download_function import main_decrypt
 # from web3storage import Client
 # import socket
 import pickle
 from blockchain import Blockchain
 import requests
+
 # import os
 
 HOST = os.getenv('HOST', '0.0.0.0')
@@ -21,7 +27,8 @@ PORT = int(os.getenv('PORT', 10000))
 
 # socketio = SocketIO(app)
 blockchain = Blockchain()
-
+my_key= ''
+my_name = ''
 async def replace_chain():
     network = blockchain.nodes
     longest_chain = None
@@ -50,46 +57,46 @@ def append_file_extension(uploaded_file, file_path):
     user_file.write('\n' + file_extension)
     user_file.close()
 
-def decrypt_file(file_path, file_key):
-    encrypted_file = file_path + ".aes"
-    os.rename(file_path, encrypted_file)
-    pyAesCrypt.decryptFile(encrypted_file, file_path,  file_key, app.config['BUFFER_SIZE'])
+# def decrypt_file(file_path, file_key):
+#     encrypted_file = file_path + ".aes"
+#     os.rename(file_path, encrypted_file)
+#     pyAesCrypt.decryptFile(encrypted_file, file_path,  file_key, app.config['BUFFER_SIZE'])
 
-def encrypt_file(file_path, file_key):
-    pyAesCrypt.encryptFile(file_path, file_path + ".aes",  file_key, app.config['BUFFER_SIZE'])
+# def encrypt_file(file_path, file_key):
+#     pyAesCrypt.encryptFile(file_path, file_path + ".aes",  file_key, app.config['BUFFER_SIZE'])
 
-def hash_user_file(user_file, file_key):
-    encrypt_file(user_file, file_key)
-    encrypted_file_path = user_file + ".aes"
-    # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
-    client = Client(api_key = app.config['KEY'] )
-    response = client.upload_file(encrypted_file_path)
-    print("response", response)
-    file_hash = response['cid']
-    return file_hash
+# def hash_user_file(user_file, file_key):
+#     encrypt_file(user_file, file_key)
+#     encrypted_file_path = user_file + ".aes"
+#     # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
+#     client = Client(api_key = app.config['KEY'] )
+#     response = client.upload_file(encrypted_file_path)
+#     print("response", response)
+#     file_hash = response['cid']
+#     return file_hash
 
-async def retrieve_from_hash(file_hash, file_key):
-    # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
-    # client = Client(api_key = app.config['KEY'] )
-    # file_content = client.download(file_hash)
-    response = requests.get(f'https://{file_hash}.ipfs.dweb.link') # add error handelling
-    file_content = response.content
+# async def retrieve_from_hash(file_hash, file_key):
+#     # client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
+#     # client = Client(api_key = app.config['KEY'] )
+#     # file_content = client.download(file_hash)
+#     response = requests.get(f'https://{file_hash}.ipfs.dweb.link') # add error handelling
+#     file_content = response.content
 
-    file_path = os.path.join("./downloads", file_hash)
-    # file_path = os.path.join(app.config['DOWNLOAD_FOLDER'], file_hash)
-    user_file = open(file_path, 'wb')
-    user_file.write(file_content)
-    user_file.close()
-    decrypt_file(file_path, file_key)
-    with open(file_path, 'rb') as f:
-        lines = f.read().splitlines()
-        last_line = lines[-1]
-    user_file.close()
-    file_extension = last_line
-    saved_file = file_path + '.' + file_extension.decode()
-    os.rename(file_path, saved_file)
-    print(saved_file)
-    return saved_file
+#     file_path = os.path.join("./downloads", file_hash)
+#     # file_path = os.path.join(app.config['DOWNLOAD_FOLDER'], file_hash)
+#     user_file = open(file_path, 'wb')
+#     user_file.write(file_content)
+#     user_file.close()
+#     decrypt_file(file_path, file_key)
+#     with open(file_path, 'rb') as f:
+#         lines = f.read().splitlines()
+#         last_line = lines[-1]
+#     user_file.close()
+#     file_extension = last_line
+#     saved_file = file_path + '.' + file_extension.decode()
+#     os.rename(file_path, saved_file)
+#     print(saved_file)
+#     return saved_file
 
 @app.route('/')
 def index():
@@ -110,8 +117,26 @@ def download():
 @app.route('/connect_blockchain')
 async def connect_blockchain():
     print("con")
+    global connection_status
+    global my_key, my_name
+    nodes = len(blockchain.nodes)
+
+    if os.path.exists("./private_key.pem"):
+        print("File exists!")
+        with open('public.txt', 'r') as fl:
+            my_key = fl.read()
+        with open('username.txt', 'r') as nm:
+            my_name = nm.read()
+    else:
+        generate_and_store_keys()
+        my_key = get_str_from_key()
+        my_name = str(int(time.time()))
+        with open('username.txt', 'w') as userfile:
+            userfile.write(my_name)
+
+    blockchain.clients[my_name] = my_key
     await replace_chain()
-    return render_template('connect_blockchain.html', chain = blockchain.chain, nodes = len(blockchain.nodes))
+    return render_template('connect_blockchain.html', chain = blockchain.chain, nodes = len(blockchain.nodes), userName = my_name)
 
 @app.errorhandler(413)
 def entity_too_large(e):
@@ -119,37 +144,51 @@ def entity_too_large(e):
 
 @app.route('/add_file', methods=['POST'])
 async def add_file():
+
     if request.method == 'POST':
         error_flag = True
         if 'file' not in request.files:
             message = 'No file part'
         else:
             user_file = request.files['file']
+            receiver = request.form['receiver_name']
+            receiver_key = ''
             if user_file.filename == '':
                 message = 'No file selected for uploading'
 
-            if user_file and allowed_file(user_file.filename):
+            if receiver not in blockchain.clients:
+                message = 'Invalid Receiver'
+            else:
+                receiver_key = blockchain.clients[receiver]
+
+            if receiver_key and user_file and allowed_file(user_file.filename):
                 error_flag = False
                 filename = secure_filename(user_file.filename)
                 # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file_path = os.path.join("./uploads", filename)
+                print(file_path)
                 user_file.save(file_path)
-                append_file_extension(user_file, file_path)
-                sender = request.form['sender_name']
-                receiver = request.form['receiver_name']
-                file_key = request.form['file_key']
-
+                # # append_file_extension(user_file, file_path)
+                # sender = request.form['sender_name']
+                # file_key = request.form['file_key']
+                    
                 try:
-                    hashed_output1 = hash_user_file(file_path, file_key)
-                    # index = blockchain.add_file(sender, receiver, hashed_output1)
-                    index = blockchain.create_block(sender, receiver, hashed_output1)
-                    socketio.emit('update_chain', {"chain" : blockchain.chain})
+                    def cb(data) :
+                        if data.get("flag") == False :
+                            nonlocal error_flag, message
+                            error_flag = True
+                            message = 'Could not complete. Try again !!'
+                    # hashed_output1 = hash_user_file(file_path, file_key)
+                    hashed_output1 = encrypt_upload(file_path, receiver_key)
+                    index = blockchain.create_block(my_name, receiver, hashed_output1)
+                    socketio.emit("set_chain", {"chain": blockchain.chain}, callback = cb )
                 except Exception as err:
                     message = str(err)
                     error_flag = True
                     if "ConnectionError:" in message:
                         message = "Gateway down or bad Internet!"
-
+                # message = f'File successfully uploaded'
+                # message2 =  f'It will be added to Block {index-1}'
             else:
                 error_flag = True
                 message = 'Allowed file types are txt, pdf, png, jpg, jpeg, gif'
@@ -168,14 +207,15 @@ async def retrieve_file():
 
         if request.form['file_hash'] == '':
             message = 'No file hash entered.'
-        elif request.form['file_key'] == '':
-            message = 'No file key entered.'
+        # elif request.form['file_key'] == '':
+        #     message = 'No file key entered.'
         else:
             error_flag = False
-            file_key = request.form['file_key']
+            # file_key = request.form['file_key']
             file_hash = request.form['file_hash']
             try:
-                file_path = await retrieve_from_hash(file_hash, file_key)
+                # file_path = retrieve_from_hash(file_hash, file_key)
+                main_decrypt(file_hash)
             except Exception as err:
                 message = str(err)
                 error_flag = True
@@ -241,5 +281,5 @@ def set_chain(data):
 
 if __name__ == '__main__':
     # socketio.run(app, "https://eed5-14-139-196-13.ngrok-free.app", debug=True)
-    # socketio.run(app, host = '127.0.0.1', port= 5111, debug=True)
-    socketio.run(app, host = HOST, port= PORT, debug=True)
+    socketio.run(app, host = '127.0.0.1', port= 5111, debug=True)
+    # socketio.run(app, host = HOST, port= PORT, debug=True)

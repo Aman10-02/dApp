@@ -2,3 +2,15 @@ Client/myenv
 Client/__pycache__
 Server/myenv
 Server/__pycache__
+Server/public.txt
+Server/private_key.pem
+Server/public_key.pem
+Server/username.txt
+Server/downloaded_file0
+Server/downloaded_file1
+Client/public.txt
+Client/private_key.pem
+Client/public_key.pem
+Client/username.txt
+Client/downloaded_file0
+Client/downloaded_file1

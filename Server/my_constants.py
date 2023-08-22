@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_socketio import SocketIO, send, emit
-from flask_cors import CORS
+# from flask_cors import CORS
 # import eventlet
 # from server import socketio
 # Building a Blockchain
@@ -17,4 +17,4 @@ app.config['ALLOWED_EXTENSIONS'] = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif
 app.config['BUFFER_SIZE'] = 64 * 1024
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 socketio = SocketIO(app, async_mode='threading', websocket = True, logger = True, engineio_logger=True)
-CORS(app, resources={r"/*": {"origins": "*"}}) 
+# CORS(app, resources={r"/*": {"origins": "*"}}) 

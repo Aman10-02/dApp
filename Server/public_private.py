@@ -1,7 +1,9 @@
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-def generate_and_store_keys(public_key_filename, private_key_filename):
+def generate_and_store_keys():
+    public_key_filename = "public_key.pem"
+    private_key_filename = "private_key.pem"
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048
@@ -25,9 +27,9 @@ def generate_and_store_keys(public_key_filename, private_key_filename):
             )
         )
 
-if __name__ == "__main__":
-    public_key_filename = "public_key.pem"
-    private_key_filename = "private_key.pem"
+# if __name__ == "__main__":
+#     public_key_filename = "public_key.pem"
+#     private_key_filename = "private_key.pem"
 
-    generate_and_store_keys(public_key_filename, private_key_filename)
-    print("Keys generated and stored successfully.")
+#     generate_and_store_keys(public_key_filename, private_key_filename)
+#     print("Keys generated and stored successfully.")
